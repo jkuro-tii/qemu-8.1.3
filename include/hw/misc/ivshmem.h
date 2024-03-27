@@ -21,5 +21,6 @@
 #define IVSHMEM_H
 
 #define IVSHMEM_PROTOCOL_VERSION 0
+#define TYPE_IVSHMEM_FLAT "ivshmem-flat"
 
 #endif /* IVSHMEM_H */

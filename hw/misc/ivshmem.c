@@ -26,6 +26,7 @@
 #include "hw/qdev-properties-system.h"
 #include "hw/pci/msi.h"
 #include "hw/pci/msix.h"
+#include "hw/sysbus.h"
 #include "sysemu/kvm.h"
 #include "migration/blocker.h"
 #include "migration/vmstate.h"
@@ -36,8 +37,8 @@
 #include "chardev/char-fe.h"
 #include "sysemu/hostmem.h"
 #include "qapi/visitor.h"
-
 #include "hw/misc/ivshmem.h"
+#include "hw/sysbus.h"
 #include "qom/object.h"
 
 #define PCI_VENDOR_ID_IVSHMEM   PCI_VENDOR_ID_REDHAT_QUMRANET
@@ -59,6 +60,7 @@
 
 #define TYPE_IVSHMEM_COMMON "ivshmem-common"
 typedef struct IVShmemState IVShmemState;
+typedef struct IvshmemFTState IvshmemFTState;
 DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM_COMMON,
                          TYPE_IVSHMEM_COMMON)
 
@@ -73,6 +75,9 @@ DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM_DOORBELL,
 #define TYPE_IVSHMEM "ivshmem"
 DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM,
                          TYPE_IVSHMEM)
+
+#define TYPE_IVSHMEM_FLAT "ivshmem-flat"
+DECLARE_INSTANCE_CHECKER(IvshmemFTState, IVSHMEM_FLAT, TYPE_IVSHMEM_FLAT)
 
 typedef struct Peer {
     int nb_eventfds;
@@ -105,6 +110,7 @@ struct IVShmemState {
     MemoryRegion ivshmem_mmio;  /* BAR 0 (registers) */
     MemoryRegion *ivshmem_bar2; /* BAR 2 (shared memory) */
     MemoryRegion server_bar2;   /* used with server_chr */
+    MemoryRegion flat_mem;   /* used with server_chr */
 
     /* interrupt support */
     Peer *peers;
@@ -119,6 +125,14 @@ struct IVShmemState {
     Error *migration_blocker;
 };
 
+struct IvshmemFTState {
+    SysBusDevice parent_obj;
+    /* Shared memory */
+    // MemoryRegion shmem;
+    // int shmem_fd;
+    // uint32_t shmem_size;
+};
+
 /* registers for the Inter-VM shared memory device */
 enum ivshmem_registers {
     INTRMASK = 0,
@@ -126,6 +140,8 @@ enum ivshmem_registers {
     IVPOSITION = 8,
     DOORBELL = 12,
 };
+
+extern int mmap_hugepages;
 
 static inline uint32_t ivshmem_has_feature(IVShmemState *ivs,
                                                     unsigned int feature) {
@@ -479,6 +495,9 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     Error *local_err = NULL;
     struct stat buf;
     size_t size;
+    void *ptr;
+    DeviceState *sbd;
+    // SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
 
     if (s->ivshmem_bar2) {
         error_setg(errp, "server sent unexpected shared memory message");
@@ -494,10 +513,30 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     }
 
     size = buf.st_size;
+    close(fd);
+    fd = open("/dev/hugepages/ivshmem", O_RDWR | O_CREAT, 0666);
+    printf("Opened share file fd=%d\n", fd);
+    ptr = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_HUGETLB|MAP_LOCKED,
+            fd, 0);
+    printf("mmap(): 0x%p\n", ptr);
 
     /* mmap the region and map into the BAR2 */
+    // memory_region_init_ram_ptr(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
+    //                                size, ptr);
+
+    mmap_hugepages = 1;
     memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
                                    size, RAM_SHARED, fd, 0, &local_err);
+
+    // memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
+    //                                size, RAM_SHARED, fd, 0, &local_err);
+
+    sbd = sysbus_device_simple("ivshmem-flat", 0x920000000, 0);
+    sysbus_init_mmio(sbd, &s->server_bar2);
+
+    // sysbus_init_mmio(sbd, &s->server_bar2);
+    // sysbus_mmio_map(sbd, sbd->num_mmio-1, 0x920000000);
+
     if (local_err) {
         error_propagate(errp, local_err);
         return;
@@ -1095,7 +1134,40 @@ static void ivshmem_doorbell_init(Object *obj)
 {
     IVShmemState *s = IVSHMEM_DOORBELL(obj);
 
+    printf(">>>>>>>>>>>>>>>>%s ivshmem_doorbell_init\n", __FUNCTION__);
     s->features |= (1 << IVSHMEM_MSI);
+}
+
+static void ivshmem_flat_instance_init(Object *obj)
+{
+    printf(">>>>>>>>>>>>>>>>%s instance\n", __FUNCTION__);
+    // SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
+    // IvshmemFTState *s = IVSHMEM_FLAT(obj);
+
+    // /*//  * Init mem region for 4 MMRs (ivshmem_registers),
+    //  * 32 bits each => 16 bytes (0x10).
+    //  */
+    // memory_region_init_io(&s->iomem, obj, &ivshmem_flat_ops, s,
+    //                       "ivshmem-mmio", 0x20);
+    // printf("%s\n>>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), __FUNCTION__,
+    //         memory_region_get_ram_addr(&s->iomem), memory_region_size(&s->iomem));
+
+    // sysbus_init_mmio(sbd, &s->iomem);
+
+    // printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
+    //     memory_region_size(&s->iomem));
+
+    // sysbus_mmio_map(sbd, 0, 0x1700000000);
+    // printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
+    //     memory_region_size(&s->iomem));
+
+    /*
+     * Create one output IRQ that will be connect to the
+     * machine's interrupt controller.
+     */
+    // sysbus_init_irq(sbd, &s->irq);
+
+    // QTAILQ_INIT(&s->peer);
 }
 
 static void ivshmem_doorbell_realize(PCIDevice *dev, Error **errp)
@@ -1120,6 +1192,27 @@ static void ivshmem_doorbell_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &ivshmem_doorbell_vmsd;
 }
 
+static Property ivshmem_flat_props[] = {
+    // DEFINE_PROP_CHR("chardev", IvshmemFTState, server_chr),
+    // DEFINE_PROP_UINT32("shmem-size", IvshmemFTState, shmem_size, 16 * MiB),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void ivshmem_flat_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->hotpluggable = true;
+    // TODO: check if it's OK. Don't need that
+    // dc->realize = ivshmem_flat_realize;
+    printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
+    set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+    device_class_set_props(dc, ivshmem_flat_props);
+
+    /* Reason: Must be wired up in code (sysbus MRs and IRQ) */
+    dc->user_creatable = true;
+}
+
 static const TypeInfo ivshmem_doorbell_info = {
     .name          = TYPE_IVSHMEM_DOORBELL,
     .parent        = TYPE_IVSHMEM_COMMON,
@@ -1128,11 +1221,32 @@ static const TypeInfo ivshmem_doorbell_info = {
     .class_init    = ivshmem_doorbell_class_init,
 };
 
+static const TypeInfo ivshmem_flat_info = {
+    .name = TYPE_IVSHMEM_FLAT,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(IvshmemFTState),
+    .instance_init = ivshmem_flat_instance_init,
+    .class_init = ivshmem_flat_class_init,
+};
+
 static void ivshmem_register_types(void)
 {
     type_register_static(&ivshmem_common_info);
     type_register_static(&ivshmem_plain_info);
     type_register_static(&ivshmem_doorbell_info);
+    type_register_static(&ivshmem_flat_info);
 }
 
 type_init(ivshmem_register_types)
+
+void ivshmem_flat_create()
+{
+    //DeviceState *dev = qdev_new(TYPE_IVSHMEM_FLAT);
+
+    printf("ivshmem_flat_create()\n");
+    // -> qemu-kvm: unable to map backing store for guest RAM: No such device
+
+    // sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+    // sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, 0x1300000000);
+
+}
