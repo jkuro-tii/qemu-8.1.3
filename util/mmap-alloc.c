@@ -208,14 +208,14 @@ static void *mmap_activate(void *ptr, size_t size, int fd,
         flags |= MAP_HUGETLB;
         flags &= ~MAP_FIXED;
     }
-    printf("flags=0x%x\n", flags);
+    printf("mmap_activate: flags=0x%x\n", flags);
     if (shared && sync) {
         map_sync_flags = MAP_SYNC | MAP_SHARED_VALIDATE;
     }
 
     activated_ptr = mmap(ptr, size, prot, flags | map_sync_flags, fd,
                          map_offset);
-    printf("activated_ptr1=0x%p\n", activated_ptr);
+    printf("mmap_activate: activated_ptr1=0x%p\n", activated_ptr);
     if (activated_ptr == MAP_FAILED && map_sync_flags) {
         if (errno == ENOTSUP) {
             char *proc_link = g_strdup_printf("/proc/self/fd/%d", fd);
@@ -241,7 +241,7 @@ static void *mmap_activate(void *ptr, size_t size, int fd,
          */
         flags &= ~MAP_HUGETLB;
         activated_ptr = mmap(ptr, size, prot, flags, fd, map_offset);
-        printf("activated_ptr1=0x%p\n", activated_ptr);
+        printf("mmap_activate: activated_ptr1=0x%p\n", activated_ptr);
     }
     return activated_ptr;
 }

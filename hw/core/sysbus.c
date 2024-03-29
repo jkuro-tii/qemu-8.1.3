@@ -148,9 +148,11 @@ static void sysbus_mmio_map_common(SysBusDevice *dev, int n, hwaddr addr,
                                             priority);
     }
     else {
+        printf("Before memory_region_add_subregion\n");
         memory_region_add_subregion(get_system_memory(),
                                     addr,
                                     dev->mmio[n].memory);
+        printf("After memory_region_add_subregion\n");
     }
 }
 
