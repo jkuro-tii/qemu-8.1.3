@@ -483,7 +483,6 @@ static const TypeInfo ivshmem_flat_info = {
     .name = TYPE_IVSHMEM_FLAT,
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(IvshmemFTState),
-    /*. instance_init = ivshmem_flat_instance_init, */
     .class_init = ivshmem_flat_class_init,
 };
 
