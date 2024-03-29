@@ -649,7 +649,7 @@ void ioapic_init_gsi(GSIState *gsi_state, const char *parent_name)
     d = SYS_BUS_DEVICE(dev);
     sysbus_realize_and_unref(d, &error_fatal);
     sysbus_mmio_map(d, 0, IO_APIC_DEFAULT_ADDRESS);
-
+    
     for (i = 0; i < IOAPIC_NUM_PINS; i++) {
         gsi_state->ioapic_irq[i] = qdev_get_gpio_in(dev, i);
     }

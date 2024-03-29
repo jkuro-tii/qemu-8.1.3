@@ -21,6 +21,8 @@
 
 #include "hw/misc/ivshmem-flat.h"
 
+extern unsigned int mmap_hugepages;
+
 static int64_t ivshmem_flat_recv_msg(IvshmemFTState *s, int *pfd)
 {
     int64_t msg;
@@ -74,7 +76,7 @@ static void ivshmem_flat_irq_handler(void *opaque)
         return;
     }
 
-    //trace_ivshmem_flat_irq_handler(vector_id);
+    // trace_ivshmem_flat_irq_handler(vector_id);
 
     /*
      * Toggle device's output line, which is connected to interrupt controller,
@@ -113,7 +115,7 @@ static IvshmemPeer *ivshmem_flat_add_peer(IvshmemFTState *s, uint16_t peer_id)
 
     QTAILQ_INSERT_TAIL(&s->peer, new_peer, next);
 
-    //trace_ivshmem_flat_new_peer(peer_id);
+    // trace_ivshmem_flat_new_peer(peer_id);
 
     return new_peer;
 }
@@ -139,15 +141,15 @@ static void ivshmem_flat_add_vector(IvshmemFTState *s, IvshmemPeer *peer,
                                     int vector_fd)
 {
     if (peer->vector_counter >= IVSHMEM_MAX_VECTOR_NUM) {
-        //trace_ivshmem_flat_add_vector_failure(peer->vector_counter,
-        //                                      vector_fd, peer->id);
+        // trace_ivshmem_flat_add_vector_failure(peer->vector_counter,
+        //                                       vector_fd, peer->id);
         close(vector_fd);
 
         return;
     }
 
-    //trace_ivshmem_flat_add_vector_success(peer->vector_counter,
-    //                                      vector_fd, peer->id);
+    // trace_ivshmem_flat_add_vector_success(peer->vector_counter,
+    //                                       vector_fd, peer->id);
 
     /*
      * Set vector ID and its associated eventfd notifier and add them to the
@@ -223,7 +225,7 @@ static uint64_t ivshmem_flat_iomem_read(void *opaque,
     IvshmemFTState *s = opaque;
     uint32_t ret;
 
-   // trace_ivshmem_flat_read_mmr(offset);
+    // trace_ivshmem_flat_read_mmr(offset);
 
     switch (offset) {
     case INTMASK:
@@ -236,12 +238,12 @@ static uint64_t ivshmem_flat_iomem_read(void *opaque,
         ret = s->own.id;
         break;
     case DOORBELL:
-        //trace_ivshmem_flat_read_mmr_doorbell(); /* DOORBELL is write-only */
+        // trace_ivshmem_flat_read_mmr_doorbell(); /* DOORBELL is write-only */
         ret = 0;
         break;
     default:
         /* Should never reach out here due to iomem map range being exact */
-        //trace_ivshmem_flat_read_write_mmr_invalid(offset);
+        // trace_ivshmem_flat_read_write_mmr_invalid(offset);
         ret = 0;
     }
 
@@ -271,7 +273,7 @@ static void ivshmem_flat_iomem_write(void *opaque, hwaddr offset,
     uint16_t peer_id = (value >> 16) & 0xFFFF;
     uint16_t vector_id = value & 0xFFFF;
 
-    //trace_ivshmem_flat_write_mmr(offset);
+    // trace_ivshmem_flat_write_mmr(offset);
 
     switch (offset) {
     case INTMASK:
@@ -281,12 +283,12 @@ static void ivshmem_flat_iomem_write(void *opaque, hwaddr offset,
     case IVPOSITION:
         break;
     case DOORBELL:
-        //trace_ivshmem_flat_interrupt_peer(peer_id, vector_id);
+        // trace_ivshmem_flat_interrupt_peer(peer_id, vector_id);
         ivshmem_flat_interrupt_peer(s, peer_id, vector_id);
         break;
     default:
         /* Should never reach out here due to iomem map range being exact. */
-        //trace_ivshmem_flat_read_write_mmr_invalid(offset);
+        // trace_ivshmem_flat_read_write_mmr_invalid(offset);
         break;
     }
 
@@ -313,8 +315,18 @@ static void ivshmem_flat_instance_init(Object *obj)
      * 32 bits each => 16 bytes (0x10).
      */
     memory_region_init_io(&s->iomem, obj, &ivshmem_flat_ops, s,
-                          "ivshmem-mmio", 0x10);
+                          "ivshmem-mmio", 0x20);
+    printf("%s\n>>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), __FUNCTION__,
+            memory_region_get_ram_addr(&s->iomem), memory_region_size(&s->iomem));
+
     sysbus_init_mmio(sbd, &s->iomem);
+
+    printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
+        memory_region_size(&s->iomem));
+
+    sysbus_mmio_map(sbd, 0, 0x1700000000);
+    printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
+        memory_region_size(&s->iomem));
 
     /*
      * Create one output IRQ that will be connect to the
@@ -333,7 +345,8 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
     int shmem_fd;
     uint16_t peer_id;
     struct stat fdstat;
-
+    Error *local_err = NULL;
+#if 0
     /* Check ivshmem server connection. */
     if (!qemu_chr_fe_backend_connected(&s->server_chr)) {
         error_setg(errp, "ivshmem server socket not specified or incorret."
@@ -376,7 +389,7 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
     s->own.id = peer_id;
     s->own.vector_counter = 0;
 
-    //trace_ivshmem_flat_proto_ver_own_id(protocol_version, s->own.id);
+    // trace_ivshmem_flat_proto_ver_own_id(protocol_version, s->own.id);
 
     /* Step 2 */
     msg = ivshmem_flat_recv_msg(s, &shmem_fd);
@@ -392,7 +405,7 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
                          " Can't create device!");
         return false;
     }
-    //trace_ivshmem_flat_shmem_size(shmem_fd, fdstat.st_size);
+    // trace_ivshmem_flat_shmem_size(shmem_fd, fdstat.st_size);
 
     /*
      * Shmem size provided by the ivshmem server must be equal to
@@ -412,17 +425,35 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
      */
     qemu_chr_fe_set_handlers(&s->server_chr, ivshmem_flat_can_receive_data,
                              ivshmem_flat_read_msg, NULL, NULL, s, NULL, true);
-
-    memory_region_init_ram_from_fd(&s->shmem, OBJECT(s),
-                                   "ivshmem-shmem", s->shmem_size,
-                                   RAM_SHARED, shmem_fd, 0, NULL);
+#endif
+    // printf("%s memory_region_init_ram_from_fd fd=%d size=0x%x\n", __FUNCTION__, shmem_fd, s->shmem_size);
+    // memory_region_init_ram_from_fd(&s->shmem, OBJECT(s),
+    //                                "ivshmem-shmem", s->shmem_size,
+    //                                RAM_SHARED, shmem_fd, 0, &local_err);
+    mmap_hugepages = 1;
+    memory_region_init_ram_from_file(&s->shmem, OBJECT(s),
+                                   "ivshmem-shmem", s->shmem_size, 2*1024*1024,
+                                   RAM_SHARED, "/dev/hugepages/ivshmem", 0, false, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return false;
+    }
+    printf(">>> name:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->shmem), memory_region_get_ram_addr(&s->shmem), 
+            memory_region_size(&s->shmem));
     sysbus_init_mmio(sbd, &s->shmem);
+
+    sysbus_mmio_map(sbd, 0, 0x920000000);
 
     return true;
 }
 
 static void ivshmem_flat_realize(DeviceState *dev, Error **errp)
 {
+// qemu-kvm: ../hw/core/qdev.c:282: qdev_realize: Assertion `!dev->realized && !dev->parent_bus' failed.
+// Aborted (core dumped)
+    // sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+    // sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, 0x1300000000);
+    printf("%s\n", __FUNCTION__);
     if (!ivshmem_flat_connect_server(dev, errp)) {
         return;
     }
@@ -430,7 +461,7 @@ static void ivshmem_flat_realize(DeviceState *dev, Error **errp)
 
 static Property ivshmem_flat_props[] = {
     DEFINE_PROP_CHR("chardev", IvshmemFTState, server_chr),
-    DEFINE_PROP_UINT32("shmem-size", IvshmemFTState, shmem_size, 4 * MiB),
+    DEFINE_PROP_UINT32("shmem-size", IvshmemFTState, shmem_size, 16 * MiB),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -452,7 +483,7 @@ static const TypeInfo ivshmem_flat_info = {
     .name = TYPE_IVSHMEM_FLAT,
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(IvshmemFTState),
-    .instance_init = ivshmem_flat_instance_init,
+    /*. instance_init = ivshmem_flat_instance_init, */
     .class_init = ivshmem_flat_class_init,
 };
 
