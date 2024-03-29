@@ -125,6 +125,7 @@ struct IVShmemState {
 
     /* flat memory stuff */
     DeviceState *flat_dev;
+    MemoryRegion flat_mem;
 };
 
 struct IvshmemFTState {
@@ -1197,10 +1198,10 @@ static void ivshmem_flat_instance_init(Object *obj)
 static void ivshmem_doorbell_realize(PCIDevice *dev, Error **errp)
 {
     IVShmemState *s = IVSHMEM_COMMON(dev);
-//    void *ptr;
-//    MemoryRegion mr;
-//    int size = 16*1024*1024;
-//    SysBusDevice *sbd;
+    void *ptr;
+    int size = 16*1024*1024;
+    SysBusDevice *sbd;
+    Error *local_err = NULL;
 
     printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
     printf("calling sysbus_create_simple\n");
@@ -1208,21 +1209,30 @@ static void ivshmem_doorbell_realize(PCIDevice *dev, Error **errp)
     s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
     printf("s->flat_dev = %p\n", s->flat_dev);
 
-    #if 0
+    #if 1
     sbd = SYS_BUS_DEVICE(s->flat_dev);
 
     ptr = malloc(size);
 
     printf("calling memory_region_init_ram_ptr (%p)\n", ptr);
-    memory_region_init_ram_ptr(&mr, OBJECT(s), "test",
-                                   size, ptr);
+    // memory_region_init_ram_ptr(&s->flat_mem, OBJECT(IVSHMEM_COMMON(s->flat_dev)), "test",
+    //                                size, ptr);
 
+    memory_region_init_ram_from_file(&s->flat_mem, 
+                                OBJECT(IVSHMEM_FLAT(s->flat_dev)),
+                                "ivshmem-shmem", size, 2*1024*1024,
+                                RAM_SHARED, "/dev/hugepages/ivshmem", 0, false, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
     printf("calling sysbus_init_mmio\n");
-    sysbus_init_mmio(sbd, &mr);
+    sysbus_init_mmio(sbd, &s->flat_mem);
 
     printf("calling sysbus_mmio_map\n");
-    sysbus_mmio_map(sbd, 0, 0x920000000);                                   
-    printf("sysbus_mmio_map done...\n");
+    sysbus_mmio_map(sbd, 0, 0x930000000);                                   
+    printf(">>>sysbus_mmio_map done...\n");
+
     #endif
 
     if (!qemu_chr_fe_backend_connected(&s->server_chr)) {
@@ -1252,16 +1262,16 @@ static Property ivshmem_flat_props[] = {
 
 static void ivshmem_flat_realize(DeviceState *dev, Error **errp)
 {
+    return;
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
-    IVShmemState *s = IVSHMEM_FLAT(dev);
+    IvshmemFTState *s = IVSHMEM_FLAT(dev);
     void *ptr;
     int size = 16*1024*1024;
     MemoryRegion mr;
     
     ptr = malloc(size);
 
-    memory_region_init_ram_ptr(&mr, OBJECT(s), "test",
-                                   size, ptr);
+    memory_region_init_ram_ptr(&mr, OBJECT(s), "test", size, ptr);
 
     printf(">>> name:%s addr=0x%lx size=0x%lx\n", memory_region_name(&mr), memory_region_get_ram_addr(&mr), 
         memory_region_size(&mr));
@@ -1319,5 +1329,3 @@ static void ivshmem_register_types(void)
 }
 
 type_init(ivshmem_register_types)
-
-//DeviceState *dev = qdev_new(TYPE_IVSHMEM_FLAT);
