@@ -1260,42 +1260,12 @@ static Property ivshmem_flat_props[] = {
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static void ivshmem_flat_realize(DeviceState *dev, Error **errp)
-{
-    return;
-    SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
-    IvshmemFTState *s = IVSHMEM_FLAT(dev);
-    void *ptr;
-    int size = 16*1024*1024;
-    MemoryRegion mr;
-    
-    ptr = malloc(size);
-
-    memory_region_init_ram_ptr(&mr, OBJECT(s), "test", size, ptr);
-
-    printf(">>> name:%s addr=0x%lx size=0x%lx\n", memory_region_name(&mr), memory_region_get_ram_addr(&mr), 
-        memory_region_size(&mr));
-
-    printf("calling sysbus_init_mmio\n");
-    sysbus_init_mmio(sbd, &mr);
-
-    printf("calling sysbus_mmio_map\n");
-    sysbus_mmio_map(sbd, 0, 0x920000000);                                   
-    printf("sysbus_mmio_map done...\n");
-
-
-
-    printf("%s\n", __FUNCTION__);
-}
-
 static void ivshmem_flat_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->hotpluggable = true;
-    // JK: TODO: check if it's OK. Don't need that
-    dc->realize = ivshmem_flat_realize;
-    printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
+    printf(">>>>>>>>>>>>>>>%s\n", __FUNCTION__);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     device_class_set_props(dc, ivshmem_flat_props);
 
