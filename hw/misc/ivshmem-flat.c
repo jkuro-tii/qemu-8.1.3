@@ -23,6 +23,14 @@
 
 extern unsigned int mmap_hugepages;
 
+/* Ivshmem registers. See ./docs/specs/ivshmem-spec.txt for details. */
+enum ivshmem_registers {
+    INTMASK = 0,
+    INTSTATUS = 4,
+    IVPOSITION = 8,
+    DOORBELL = 12,
+};
+
 static int64_t ivshmem_flat_recv_msg(IvshmemFTState *s, int *pfd)
 {
     int64_t msg;
@@ -430,6 +438,7 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
     // memory_region_init_ram_from_fd(&s->shmem, OBJECT(s),
     //                                "ivshmem-shmem", s->shmem_size,
     //                                RAM_SHARED, shmem_fd, 0, &local_err);
+    #if 0
     mmap_hugepages = 1;
     memory_region_init_ram_from_file(&s->shmem, OBJECT(s),
                                    "ivshmem-shmem", s->shmem_size, 2*1024*1024,
@@ -443,7 +452,8 @@ static bool ivshmem_flat_connect_server(DeviceState *dev, Error **errp)
     sysbus_init_mmio(sbd, &s->shmem);
 
     sysbus_mmio_map(sbd, 0, 0x920000000);
-
+    printf(">>> memory mapped!\n");
+    #endif
     return true;
 }
 

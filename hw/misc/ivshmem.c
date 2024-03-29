@@ -37,6 +37,7 @@
 #include "sysemu/hostmem.h"
 #include "qapi/visitor.h"
 
+#include "hw/misc/ivshmem-flat.h"
 #include "hw/misc/ivshmem.h"
 #include "qom/object.h"
 
@@ -117,6 +118,9 @@ struct IVShmemState {
     /* migration stuff */
     OnOffAuto master;
     Error *migration_blocker;
+
+    DeviceState *flat_dev;
+    MemoryRegion *flat_mem;
 };
 
 /* registers for the Inter-VM shared memory device */
@@ -1102,12 +1106,46 @@ static void ivshmem_doorbell_realize(PCIDevice *dev, Error **errp)
 {
     IVShmemState *s = IVSHMEM_COMMON(dev);
 
+    void *ptr;
+    int size = 16*1024*1024;
+    SysBusDevice *sbd;
+    Error *local_err = NULL;
+
     if (!qemu_chr_fe_backend_connected(&s->server_chr)) {
         error_setg(errp, "You must specify a 'chardev'");
         return;
     }
-
     ivshmem_common_realize(dev, errp);
+
+    printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
+    printf("calling sysbus_create_simple\n");    
+
+    // flat_dev created. With -1 no mapping
+
+    s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
+    printf("s->flat_dev = %p\n", s->flat_dev);
+    sbd = SYS_BUS_DEVICE(s->flat_dev);
+
+    // ptr = malloc(size);
+
+    // printf("calling memory_region_init_ram_ptr (%p)\n", ptr);
+    // memory_region_init_ram_ptr(&s->flat_mem, OBJECT(s), "test",
+    //                                size, ptr);
+    memory_region_init_ram_from_file(&s->flat_mem, 
+                                    OBJECT(IVSHMEM_FLAT(s->flat_dev)),
+                                   "ivshmem-shmem", size, 2*1024*1024,
+                                   RAM_SHARED, "/dev/hugepages/ivshmem", 0, false, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return false;
+    }
+    printf("calling sysbus_init_mmio\n");
+    sysbus_init_mmio(sbd, &s->flat_mem);
+
+    printf("calling sysbus_mmio_map\n");
+    sysbus_mmio_map(sbd, 0, 0x920000000);                                   
+    printf(">>>sysbus_mmio_map done...\n");
+
 }
 
 static void ivshmem_doorbell_class_init(ObjectClass *klass, void *data)

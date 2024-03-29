@@ -35,14 +35,6 @@ typedef struct IvshmemFTState IvshmemFTState;
 
 DECLARE_INSTANCE_CHECKER(IvshmemFTState, IVSHMEM_FLAT, TYPE_IVSHMEM_FLAT)
 
-/* Ivshmem registers. See ./docs/specs/ivshmem-spec.txt for details. */
-enum ivshmem_registers {
-    INTMASK = 0,
-    INTSTATUS = 4,
-    IVPOSITION = 8,
-    DOORBELL = 12,
-};
-
 typedef struct VectorInfo {
     EventNotifier event_notifier;
     uint16_t id;
