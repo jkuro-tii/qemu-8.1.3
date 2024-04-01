@@ -499,7 +499,7 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     struct stat buf;
     size_t size;
     void *ptr;
-    DeviceState *dev;
+    SysBusDevice *sbd;
 
     printf("%s\n", __FUNCTION__);
 
@@ -532,33 +532,30 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
                                    size, RAM_SHARED, fd, 0, &local_err);
 
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;}
     // memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
     //                                size, RAM_SHARED, fd, 0, &local_err);
 
-#if 0
     printf("sysbus_create_simple\n");
-    dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, 0x930000000,
-    /*(hwaddr)-1,*/ 0);
+    s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
+    printf("s->flat_dev = %p\n", s->flat_dev);
+
+    memory_region_init_ram_ptr(&s->flat_mem, OBJECT(IVSHMEM_FLAT(s->flat_dev)), 
+                            "ivshmem.flat", size, ptr);
 
     printf("SYS_BUS_DEVICE\n");
-    sbd = SYS_BUS_DEVICE(dev);
+    sbd = SYS_BUS_DEVICE(s->flat_dev);
 
     printf("sysbus_init_mmio\n");
-    sysbus_init_mmio(sbd, &s->server_bar2);
+    sysbus_init_mmio(sbd, &s->flat_mem);
     printf("sbd->num_mmio=%d\n", sbd->num_mmio);
 
     printf("sysbus_mmio_map\n");
-    // sysbus_mmio_map(sbd, /*sbd->num_mmio-1*/ 0, 0x920000000);
+    sysbus_mmio_map(sbd, 0, 0x920000000);
     printf("sysbus_mmio_map executed\n");
  
-    // sysbus_init_mmio(sbd, &s->server_bar2);
-    // sysbus_mmio_map(sbd, sbd->num_mmio-1, 0x920000000);
-#endif
-    if (local_err) {
-        error_propagate(errp, local_err);
-        return;
-    }
-
     s->ivshmem_bar2 = &s->server_bar2;
 }
 
@@ -1155,61 +1152,21 @@ static void ivshmem_doorbell_init(Object *obj)
     s->features |= (1 << IVSHMEM_MSI);
 }
 
-static void ivshmem_flat_instance_init(Object *obj)
-{
-    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
-    
-    printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
-
-    printf("sbd->mmio=%p\n", sbd->mmio);
-    // sysbus_init_mmio(sbd, 0);
-    // printf("sysbus_init_mmio done\n");
-
-    // SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
-    // IvshmemFTState *s = IVSHMEM_FLAT(obj);
-
-    // /*//  * Init mem region for 4 MMRs (ivshmem_registers),
-    //  * 32 bits each => 16 bytes (0x10).
-    //  */
-    // memory_region_init_io(&s->iomem, obj, &ivshmem_flat_ops, s,
-    //                       "ivshmem-mmio", 0x20);
-    // printf("%s\n>>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), __FUNCTION__,
-    //         memory_region_get_ram_addr(&s->iomem), memory_region_size(&s->iomem));
-
-    // sysbus_init_mmio(sbd, &s->iomem);
-
-    // printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
-    //     memory_region_size(&s->iomem));
-
-    // sysbus_mmio_map(sbd, 0, 0x1700000000);
-    // printf(">>> s->iomem:%s addr=0x%lx size=0x%lx\n", memory_region_name(&s->iomem), memory_region_get_ram_addr(&s->iomem), 
-    //     memory_region_size(&s->iomem));
-
-    /*
-     * Create one output IRQ that will be connect to the
-     * machine's interrupt controller.
-     */
-    // sysbus_init_irq(sbd, &s->irq);
-
-    // QTAILQ_INIT(&s->peer);
-    printf(">>>>>>>>>>>>>>>>%s exit\n", __FUNCTION__);
-}
-
 static void ivshmem_doorbell_realize(PCIDevice *dev, Error **errp)
 {
     IVShmemState *s = IVSHMEM_COMMON(dev);
-    void *ptr;
-    int size = 16*1024*1024;
-    SysBusDevice *sbd;
-    Error *local_err = NULL;
+    // void *ptr;
+    // int size = 16*1024*1024;
+    // SysBusDevice *sbd;
+    // Error *local_err = NULL;
 
     printf(">>>>>>>>>>>>>>>>%s\n", __FUNCTION__);
+    #if 0
     printf("calling sysbus_create_simple\n");
     // flat_dev created. With -1 no mapping
     s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
     printf("s->flat_dev = %p\n", s->flat_dev);
 
-    #if 1
     sbd = SYS_BUS_DEVICE(s->flat_dev);
 
     ptr = malloc(size);
@@ -1285,8 +1242,6 @@ static const TypeInfo ivshmem_flat_info = {
     .name = TYPE_IVSHMEM_FLAT,
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(IvshmemFTState),
-    // JK: TODO: probable we don't need it
-    .instance_init = ivshmem_flat_instance_init,
     .class_init = ivshmem_flat_class_init,
 };
 
