@@ -11,7 +11,6 @@
 
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/mman.h>
 
 #include "ivshmem-server.h"
 
@@ -291,7 +290,6 @@ ivshmem_server_start(IvshmemServer *server)
 {
     struct sockaddr_un s_un;
     int shm_fd, sock_fd, ret;
-    void *ptr;
 
     /* open shm file */
     if (server->use_shm_open) {
@@ -302,9 +300,8 @@ ivshmem_server_start(IvshmemServer *server)
         gchar *filename = g_strdup_printf("%s/ivshmem", server->shm_path);
         IVSHMEM_SERVER_DEBUG(server, "Using file-backed shared memory: %s\n",
                              server->shm_path);
-        // shm_fd = mkstemp(filename);
-        shm_fd = open(filename, O_RDWR | O_CREAT, 0666);
-        // unlink(filename);
+        shm_fd = mkstemp(filename);
+        unlink(filename);
         g_free(filename);
     }
 
@@ -318,9 +315,6 @@ ivshmem_server_start(IvshmemServer *server)
                 strerror(errno));
         goto err_close_shm;
     }
-    ptr = mmap(0, server->shm_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_HUGETLB/*|MAP_LOCKED*/,
-            server->shm_fd, 0);
-    printf("mmap(): ptr = 0x%p\n", ptr);
 
     IVSHMEM_SERVER_DEBUG(server, "create & bind socket %s\n",
                          server->unix_sock_path);
