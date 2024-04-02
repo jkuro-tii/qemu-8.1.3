@@ -181,7 +181,6 @@ static void *mmap_reserve(size_t size, int fd)
  * Activate memory in a reserved region from the given fd (if any), to make
  * it accessible.
  */
-unsigned int mmap_hugepages = 0;
 static void *mmap_activate(void *ptr, size_t size, int fd,
                            uint32_t qemu_map_flags, off_t map_offset)
 {
@@ -201,21 +200,12 @@ static void *mmap_activate(void *ptr, size_t size, int fd,
     flags |= fd == -1 ? MAP_ANONYMOUS : 0;
     flags |= shared ? MAP_SHARED : MAP_PRIVATE;
     flags |= noreserve ? MAP_NORESERVE : 0;
-    if (mmap_hugepages) {
-        mmap_hugepages = 0;
-        munmap(ptr, size);
-        ptr = NULL;
-        flags |= MAP_HUGETLB;
-        flags &= ~MAP_FIXED;
-    }
-    printf("mmap_activate: flags=0x%x\n", flags);
     if (shared && sync) {
         map_sync_flags = MAP_SYNC | MAP_SHARED_VALIDATE;
     }
 
     activated_ptr = mmap(ptr, size, prot, flags | map_sync_flags, fd,
                          map_offset);
-    printf("mmap_activate: activated_ptr1=0x%p\n", activated_ptr);
     if (activated_ptr == MAP_FAILED && map_sync_flags) {
         if (errno == ENOTSUP) {
             char *proc_link = g_strdup_printf("/proc/self/fd/%d", fd);
@@ -239,9 +229,7 @@ static void *mmap_activate(void *ptr, size_t size, int fd,
          * If mmap failed with MAP_SHARED_VALIDATE | MAP_SYNC, we will try
          * again without these flags to handle backwards compatibility.
          */
-        flags &= ~MAP_HUGETLB;
         activated_ptr = mmap(ptr, size, prot, flags, fd, map_offset);
-        printf("mmap_activate: activated_ptr1=0x%p\n", activated_ptr);
     }
     return activated_ptr;
 }
