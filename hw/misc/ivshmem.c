@@ -517,8 +517,8 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
                 fd, 0);
         s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
 
-        memory_region_init_ram_ptr(&s->flat_mem, OBJECT(IVSHMEM_FLAT(s->flat_dev)), 
-                                "ivshmem.flat", size, ptr);
+        memory_region_init_ram_ptr(&s->flat_mem, OBJECT(IVSHMEM_FLAT(s->flat_dev)),
+                                   "ivshmem.flat", size, ptr);
         sbd = SYS_BUS_DEVICE(s->flat_dev);
         sysbus_init_mmio(sbd, &s->flat_mem);
         sysbus_mmio_map(sbd, 0, s->flataddr);
@@ -526,7 +526,7 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
 
     /* mmap the region and map into the BAR2 */
     memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
-                                size, RAM_SHARED, fd, 0, &local_err);
+                                   size, RAM_SHARED, fd, 0, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         return;
