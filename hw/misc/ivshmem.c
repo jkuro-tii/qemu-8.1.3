@@ -496,8 +496,6 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     void *ptr;
     SysBusDevice *sbd;
 
-    printf("%s\n", __FUNCTION__);
-
     if (s->ivshmem_bar2) {
         error_setg(errp, "server sent unexpected shared memory message");
         close(fd);
@@ -517,25 +515,13 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
 
         ptr = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_HUGETLB|MAP_LOCKED,
                 fd, 0);
-        printf("mmap(): %p\n", ptr);
-        printf("flataddr: 0x%llx\n", s->flataddr);
-        printf("sysbus_create_simple\n");
         s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
-        printf("s->flat_dev = %p\n", s->flat_dev);
 
         memory_region_init_ram_ptr(&s->flat_mem, OBJECT(IVSHMEM_FLAT(s->flat_dev)), 
                                 "ivshmem.flat", size, ptr);
-
-        printf("SYS_BUS_DEVICE\n");
         sbd = SYS_BUS_DEVICE(s->flat_dev);
-
-        printf("sysbus_init_mmio\n");
         sysbus_init_mmio(sbd, &s->flat_mem);
-        printf("sbd->num_mmio=%d\n", sbd->num_mmio);
-
-        printf("sysbus_mmio_map\n");
         sysbus_mmio_map(sbd, 0, s->flataddr);
-        printf("sysbus_mmio_map executed\n");
     }
 
     /* mmap the region and map into the BAR2 */
@@ -1172,7 +1158,6 @@ static void ivshmem_flat_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->hotpluggable = true;
-    printf(">>>>>>>>>>>>>>>%s\n", __FUNCTION__);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     device_class_set_props(dc, ivshmem_flat_props);
     dc->user_creatable = false;
