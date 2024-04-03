@@ -518,7 +518,7 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
         ptr = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_HUGETLB|MAP_LOCKED,
                 fd, 0);
         printf("mmap(): %p\n", ptr);
-        printf("flataddr: %p\n", s->flataddr);
+        printf("flataddr: 0x%llx\n", s->flataddr);
         printf("sysbus_create_simple\n");
         s->flat_dev = sysbus_create_simple(TYPE_IVSHMEM_FLAT, -1, 0);
         printf("s->flat_dev = %p\n", s->flat_dev);

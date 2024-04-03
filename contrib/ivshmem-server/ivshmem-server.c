@@ -11,6 +11,7 @@
 
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/mman.h>
 
 #include "ivshmem-server.h"
 
@@ -300,8 +301,7 @@ ivshmem_server_start(IvshmemServer *server)
         gchar *filename = g_strdup_printf("%s/ivshmem", server->shm_path);
         IVSHMEM_SERVER_DEBUG(server, "Using file-backed shared memory: %s\n",
                              server->shm_path);
-        shm_fd = mkstemp(filename);
-        unlink(filename);
+        shm_fd = open(filename, O_RDWR | O_CREAT, 0666);
         g_free(filename);
     }
 
